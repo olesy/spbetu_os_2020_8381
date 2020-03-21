@@ -1,4 +1,4 @@
-# git fetch caxapexac         # Сахаров Виктор
+git fetch caxapexac         # Сахаров Виктор
 # git fetch LemonGrace        # Гречко Вероника
 # git fetch Elli-zveg         # Звегинцева Елизавета
 # git fetch garet2gis         # Муковский Данил
