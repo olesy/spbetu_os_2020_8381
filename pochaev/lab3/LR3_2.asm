@@ -123,7 +123,6 @@ E_MEM		PROC near
 E_MEM		ENDP
 
 MCB_BLOCK PROC near
-
 	mov di, offset LINE
 	add di, 5
 	mov ax, es
@@ -213,6 +212,6 @@ OUTPUT_LINE:
 	xor al, al
 	mov ah, 4ch
 	int 21h
-end_size db 0	
+	end_size db 0	
 TESTPC 	ENDS
 		END START

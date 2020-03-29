@@ -124,7 +124,6 @@ E_MEM		PROC near
 E_MEM		ENDP
 
 MCB_BLOCK PROC near
-
 	mov di, offset LINE
 	add di, 5
 	mov ax, es
