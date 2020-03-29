@@ -1,271 +1,541 @@
-CODE    SEGMENT
-    ASSUME CS:CODE, DS:DATA, SS:ASTACK
-          
-MY_CUSTOM_ITERRUPT PROC far
-    jmp custom_interrupt
+.SEQ ; последовательно упорядочивание сегментов (MASM 32)
+ 
+CODE SEGMENT
+        ASSUME CS: CODE, DS: DATA, ES: NOTHING, SS: L5_STACK
+START:  jmp BEGIN
 
-    PSP dw ?
-    KEEP_IP dw 0
-    KEEP_CS dw 0
-    ITERRUPT_ID dw 8f17h
+DATA SEGMENT
+        PSP_SIZE = 10h                   
+        STK_SIZE = 10h                   
+        CMD_BUF db 80h dup (00h)        
 
-    STR_ITERRUPT db 'It works! 42. $'
-   
-    KEEP_SS dw ?
-    KEEP_SP dw ?
-    KEEP_AX dw ?
-    REQ_KEY db 3Bh
-    STR_INDEX db 0
-    ITERRUPT_STACK dw 32 dup (?)
-    END_IT_STACK dw ?
-   
-custom_interrupt:
-   mov KEEP_SS,ss
-   mov KEEP_SP,sp
-   mov KEEP_AX,ax
+        ; Скан коды клавишь в XT + рядом ASCII
+        HK_KEY1 = 23h                  
+        HK_ASC1 = 'H'
+        HK_KEY2 = 2Eh
+        HK_ASC2 = 'C'
 
-   mov ax,cs
-   mov ss,ax
-   mov sp,offset END_IT_STACK
+        L5_SIGN db 'String = signature.',    								      0Dh, 0Ah, '$'
+        CMD_ERR db 'At the end of the command line detected an invalid parameter! Change my mind',   	      0Dh, 0Ah, '$'
+        UNL_ERR db 'The program started with the key "/un" before the implementation of interrupts.',         0Dh, 0Ah, '$'
+        STA_LOA db 'Loading custom interrupt successfully completed.',  				      0Dh, 0Ah, '$'
+        STA_ALR db 'User interrupt was uploaded earlier.',   						      0Dh, 0Ah, '$'
+        STA_UNL db 'Uploading custom interrupt successfully completed.',   				      0Dh, 0Ah, '$'
+        INF_USG db 'The list of the traced keyboard shortcuts:',   					      0Dh, 0Ah, '$'
+        INF_HK1 db ' - (Ctrl+Alt+H): Output of this help.',   						      0Dh, 0Ah, '$'
+        INF_HK2 db ' - (Ctrl+Alt+C): Output of the call counter of the processor.',   			      0Dh, 0Ah, '$'
+        INT_CNT db 'Counter of number of calls of the user interruption:       .',   		              0Dh, 0Ah, '$'
+        PRM_ERR db 'Failed to release the memory used by the program. Error code:     H.',  		      0Dh, 0Ah, '$'
+        ENM_ERR db 'Unable to free the memory occupied by the environment. Error code:    H.',   	      0Dh, 0Ah, '$'
 
-   push bx
-   push cx
-   push dx
-   
-   in al,60h
-   cmp al,REQ_KEY
-   je m_do_req
-   call dword ptr cs:KEEP_IP
-   jmp m_iter_end
-   
-m_do_req:
-    in al,61h
-	mov ah, al    
-	or al, 80h    
-	out 61h, al  
-	xchg ah, al    
-	out 61h, al    
-	mov al, 20h     
-	out 20h, al  
+        KEEP_IP dw ?
+        KEEP_CS dw ?
+        IT_CNTR dw 0
 
-    xor bx,bx
-    mov bl,STR_INDEX
-   
-m_write_s:
-   mov ah,05h
-   mov cl,STR_ITERRUPT[bx]
-   cmp cl,'$'
-   je m_str_end
-   mov ch,00h
-   int 16h
-   or al,al
-   jnz m_skip
-   inc bl
-   mov STR_INDEX,bl
-   jmp m_iter_end
-   
-m_skip:
-   mov ax,0C00h
-   int 21h
-   jmp m_write_s
+        CHR_EOT = '$'
+        INF_CLR = 0Fh
 
-m_str_end:
-   mov STR_INDEX,0
+        ; Достаточно для MS-DOS
+        INT_STACK DW    100 dup (?)
+        KEEP_SS DW      0
+        KEEP_AX	DW      ?
+        KEEP_SP DW      0
+      
+DATA ENDS
 
-m_iter_end:
-   
-	pop dx
-	pop cx
-	pop bx
-   
-	mov ax, KEEP_SS
-	mov ss, ax
-	mov ax, KEEP_AX
-	mov sp, KEEP_SP
+L5_STACK SEGMENT STACK
+        db STK_SIZE * 10h dup (?)
+L5_STACK ENDS
 
-   iret
-m_iterrapt_end:
-MY_CUSTOM_ITERRUPT ENDP               
+; Процедуры перевода
 
-WRITE_STRING PROC near
-   push AX
-   mov AH,09h
-   int 21h
-   pop AX
-   ret
-WRITE_STRING ENDP
+TETR_TO_HEX PROC NEAR
+        and     AL, 0Fh
+        cmp     AL, 09h
+        jbe     NEXT
+        add     AL, 07h
+NEXT:
+        add     AL, 30h
+        ret
+TETR_TO_HEX ENDP
 
-LOAD_FLAG PROC near
-   push ax
-   
-   mov PSP,es
-   mov al,es:[81h+1]
-   cmp al,'/'
-   jne m_load_flag_end
-   mov al,es:[81h+2]
-   cmp al, 'u'
-   jne m_load_flag_end
-   mov al,es:[81h+3]
-   cmp al, 'n'
-   jne m_load_flag_end
-   mov flag,1h
+; Перевод байта из AL в два символа HEX
+
+BYTE_TO_HEX PROC NEAR
+        push    CX
+        mov     AH, AL
+        call    TETR_TO_HEX
+        xchg    AL, AH
+        mov     CL, 04h
+        shr     AL, CL
+        call    TETR_TO_HEX     
+        pop     CX              
+        ret
+BYTE_TO_HEX ENDP
+
+; Перевод в HEX слова из AX
+
+WRD_TO_HEX PROC NEAR
+        push    AX
+        push    BX
+        push    DI
+        mov     BH, AH
+        call    BYTE_TO_HEX
+        mov     DS:[DI], AH
+        dec     DI
+        mov     DS:[DI], AL
+        dec     DI
+        mov     AL, BH
+        call    BYTE_TO_HEX
+        mov     DS:[DI], AH
+        dec     DI
+        mov     DS:[DI], AL
+        pop     DI
+        pop     BX
+        pop     AX
+        ret
+WRD_TO_HEX ENDP
+
+; Перевод байта из AL в DEC
+
+BYTE_TO_DEC PROC NEAR
+        push    AX
+        push    CX
+        push    DX
+        push    SI
+        xor     AH, AH
+        xor     DX, DX
+        mov     CX, 0Ah
+loop_bd:
+        div     CX
+        or      DL, 30h
+        mov     DS:[SI], DL
+        dec     SI
+        xor     DX, DX
+        cmp     AX, 0Ah
+        jae     loop_bd
+        cmp     AL, 00h
+        je      end_l
+        or      AL, 30h
+        mov     DS:[SI], AL
+end_l:
+        pop     SI
+        pop     DX
+        pop     CX
+        pop     AX
+        ret
+BYTE_TO_DEC ENDP
+
+; Перевод слова из AX в DEC
+
+WRD_TO_DEC PROC NEAR
+        push    BX
+        xor     BX, BX
+        call    DWRD_TO_DEC
+        pop     BX
+        ret
+WRD_TO_DEC ENDP
+
+; Перевод BX:AX в DEC
+
+DWRD_TO_DEC PROC NEAR
+        push    AX
+        push    BX
+        push    CX
+        push    DX
+        push    DI
+        jmp     clear_dd
+cont_dd:
+        mov     AX, CX
+        mov     BX, DX
+clear_dd:       xor CX, CX
+        xor     DX, DX
+check_dd:       cmp BX, 00h
+        ja      subst_dd
+        cmp     AX, 0Ah
+        jb      write_dd
+subst_dd:       clc
+        sub     AX, 0Ah
+        sbb     BX, 00h
+        clc
+        add     CX, 01h
+        adc     DX, 00h
+        jmp     check_dd
+write_dd:       add AX, 30h
+        mov     DS:[DI], AL
+        dec     DI
+        test    CX, CX
+        jnz     cont_dd
+        test    DX, DX
+        jnz     cont_dd
+        pop     DI
+        pop     DX
+        pop     CX
+        pop     BX
+        pop     AX
+        ret
+DWRD_TO_DEC ENDP
   
-m_load_flag_end:
-   pop ax
-   ret
-LOAD_FLAG ENDP
+; Вывод символа
+PR_CHR_BIOS PROC NEAR
+        push    AX
+        push    BX
+        push    CX
+        xchg    AL, CL          
+        mov     AH, 0Fh         
+        int     10h            
+        xchg    AL, CL          
+        mov     AH, 09h         
+        mov     CX, 01h         
+        int     10h
+        pop     CX
+        pop     BX
+        pop     AX
+        ret
+PR_CHR_BIOS ENDP
 
-IS_LOAD PROC near
-   push ax
-   push si
-   
-   mov ah,35h
-   mov al,1Ch
-   int 21h
-   mov si,offset ITERRUPT_ID
-   sub si,offset MY_CUSTOM_ITERRUPT
-   mov dx,es:[bx+si]
-   cmp dx, 8f17h
-   jne m_is_load_end
-   mov flag_load,1h
-m_is_load_end:   
-   pop si
-   pop ax
-   ret
-IS_LOAD ENDP
+; Вывод текста
+PR_STR_BIOS PROC NEAR
+        push    AX
+        push    BX
+        push    CX
+        push    DX
+        push    DI
+        push    ES
+        mov     AX, DS
+        mov     ES, AX
+        mov     AH, 0Fh         
+        int     10h             
+        mov     AH, 03h        
+        int     10h             
+        mov     DI, 00h         
+dsbp_nxt:
+        cmp     byte ptr DS:[BP+DI], CHR_EOT    
+        je      dsbp_out        
+        inc     DI              
+        jmp     dsbp_nxt
+dsbp_out:
+        mov     CX, DI          
+        mov     AH, 13h         
+        mov     AL, 01h         
+        int     10h
+        pop     ES
+        pop     DI
+        pop     DX
+        pop     CX
+        pop     BX
+        pop     AX
+        ret
+PR_STR_BIOS ENDP
 
-LOAD_ITERRAPT PROC near
-   push ax
-   push dx
-   
-   call IS_LOAD
-   cmp flag_load,1h
-   je m_already_load
-   jmp m_start_load
-   
-m_already_load:
-   lea dx,STR_ALR_LOAD
-   call WRITE_STRING
-   jmp m_end_load
-  
-m_start_load:
-   mov AH,35h
-	mov AL,1Ch
-	int 21h 
-	mov KEEP_CS, ES
-	mov KEEP_IP, BX
-   
-    push ds
-    lea dx, MY_CUSTOM_ITERRUPT
-    mov ax, seg MY_CUSTOM_ITERRUPT
-    mov ds,ax
-    mov ah,25h
-    mov al, 1Ch
-    int 21h
-    pop ds
-    lea dx, STR_SUC_LOAD
-    call WRITE_STRING
-   
-    lea dx, m_iterrapt_end
-    mov CL, 4h
-    shr DX,CL
-    inc DX
-    mov ax,cs
-    sub ax,PSP
-    add dx,ax
-    xor ax,ax
-    mov AH,31h
-    int 21h
-     
-m_end_load:  
-   pop dx
-   pop ax
-   ret
-LOAD_ITERRAPT ENDP
+; Обработчик прерывания 
 
-UNLOAD_ITERRAPT PROC near
-   push ax
-   push si
-   
-   call IS_LOAD
-   cmp flag_load,1h
-   jne m_cant_unload
-   jmp m_start_unload
-   
-m_cant_unload:
-   lea dx,STR_IST_LOAD
-   call WRITE_STRING
-   jmp m_unload_end
+INT_09H_PRO PROC FAR
+        mov KEEP_SS, SS 
+        mov KEEP_SP, SP 
+        mov KEEP_AX, AX 
+        mov AX,seg INT_STACK
+        mov SS,AX
+        mov SP,0
+        mov AX,KEEP_AX
+	
+        push    AX
+        push    BX
+        push    CX
+        push    BP
+        push    DI
+        push    DS
+        push    ES
+        mov     AX, DATA
+        mov     DS, AX          
+        mov     AX, 40h
+        mov     ES, AX
+        inc     IT_CNTR
+        mov     AL, ES:[17h]
+        ; Байт 417h:
+        ; бит 1 - любой ctrl
+        ; бит 2 -любой alt
+        and     AL, 00001100b
+        cmp     AL, 00001100b
 
-m_start_unload:
-   CLI
-   PUSH DS
-   mov ah,35h
-	mov al,1Ch
-	int 21h 
-   mov si,offset KEEP_IP
-	sub si,offset MY_CUSTOM_ITERRUPT
-	mov dx,es:[bx+si]
-	mov ax,es:[bx+si+2]
-   MOV DS,AX
-   MOV AH,25H
-   MOV AL, 1CH
-   INT 21H
-   POP DS
-   STI
-   
-   lea dx,STR_IS_UNLOAD
-   call WRITE_STRING
-   
-   mov ax,es:[bx+si-2]
-   mov es,ax
-   mov ax,es:[2ch]
-   push es
-   mov es,ax
-   mov ah,49h
-   int 21h
-   pop es
-   int 21h
-   
-m_unload_end:   
-   pop si
-   pop ax
-   ret
-UNLOAD_ITERRAPT ENDP
+        jne     orig_int        
+        in      AL, 60h         
+        jmp     chk_hk01
+orig_int:
+        pushf                   
+        call    dword ptr DS:[KEEP_IP] 
+        jmp     int_quit
+chk_hk01:
+        cmp     AL, HK_KEY1
+        jne     chk_hk02
+        mov     AH, AL
+        in      AL, 61h
+        or      AL, 10000000b
+        out     61h, AL
+        and     AL, 01111111b
+        out     61h, AL
+        mov     BL, INF_CLR     
+        lea     BP, INF_USG    
+        call    PR_STR_BIOS
+        lea     BP, INF_HK1
+        call    PR_STR_BIOS
+        lea     BP, INF_HK2
+        call    PR_STR_BIOS
+        mov     CH, AH          
+        mov     CL, HK_ASC1
+        jmp     buff_wrt
+chk_hk02:
+        cmp     AL, HK_KEY2
+        jne     orig_int
+        mov     AH, AL
+        in      AL, 61h
+        or      AL, 10000000b
+        out     61h, AL
+        and     AL, 01111111b
+        out     61h, AL
+        lea     DI, INT_CNT     
+        add     DI, 57     
+        mov     AX, IT_CNTR
+        call    WRD_TO_DEC
+        mov     BL, INF_CLR     
+        lea     BP, INT_CNT
+        call    PR_STR_BIOS
+        mov     CH, AH
+        mov     CL, HK_ASC2
+        jmp     buff_wrt
+buff_wrt:       
+        mov     AH, 05h        
+        int     16h
+        cmp     AL, 00h         
+        jne     int_quit       
+        jmp     int_quit
+int_quit:       
+        mov     AL, 20h
+        out     20h, AL
+        pop     ES
+        pop     DS
+        pop     DI
+        pop     BP
+        pop     CX
+        pop     BX
+        pop     AX
+				
+        mov 	AX,KEEP_SS
+        mov 	SS,AX
+        mov 	AX,KEEP_AX
+        mov 	SP,KEEP_SP
+				
+        iret
+INT_09H_PRO ENDP
 
-Main      PROC  FAR
-   push  DS       
-   xor   AX,AX    
-   push  AX       
-   mov   AX,DATA             
-   mov   DS,AX
+; BEGIN
+BEGIN:
+        mov     BX, DATA     
+        mov     DS, BX         
+        push    ES              
+        mov     AH, 35h         
+        mov     AL, 09h         
+        int     21h
+        mov     KEEP_CS, ES     
+        mov     KEEP_IP, BX     
+        pop     ES              
+        jmp     cmds_buf
 
-   call LOAD_FLAG
-   cmp flag, 1h
-   je m_unload_iterrapt
-   call LOAD_ITERRAPT
-   jmp m_end
-   
-m_unload_iterrapt:
-   call UNLOAD_ITERRAPT
-   
-m_end:  
-   mov ah,4ch
-   int 21h    
-Main      ENDP
-CODE      ENDS
+; Обработка хвоста командной строки
+cmds_buf:
+        xor     BH, BH          
+        xor     CH, CH
+        mov     CL, ES:[80h]    
+        cmp     CL, 00h         
+        je      sign_chk
+        lea     DI, CMD_BUF     
+        mov     SI, 81h         
+        mov     AH, 00h         
+        jmp     cmds_chk
+cmds_chk:       mov     AL, byte ptr ES:[SI]    
+                cmp     AL, '"'         
+                jne     cmds_chr
+                not     AH              
+                and     AH, 00000001b   
+                jmp     cmds_nxt
+cmds_chr:       cmp     AL, ' '         
+                jne     cmds_wrt
+                cmp     AH, 00h         
+                jne     cmds_wrt
+                mov     AL, 01h         
+                jmp     cmds_wrt
+cmds_wrt:       mov     DS:[DI], AL     
+                inc     DI              
+                jmp     cmds_nxt
+cmds_nxt:       inc     SI              
+                loop    cmds_chk
+                mov     AL, 01h         
+                mov     DS:[DI], AL     
+                cmp     AH, 00h         
+                jne     cmds_err
+                lea     DI, CMD_BUF     
+                jmp     pars_chk
+cmds_err:       mov     BL, INF_CLR    
+                lea     BP, CMD_ERR
+                call    PR_STR_BIOS
+                jmp     dos_quit
 
-ASTACK    SEGMENT  STACK
-   DW 64 DUP(?)   
-ASTACK    ENDS
+; Проверка установленного вектора прерывания
+sign_chk:       mov     AX, DATA     
+                sub     AX, CODE     
+                mov     CX, KEEP_CS
+                add     CX, AX          
+                mov     ES, CX
+                lea     DI, L5_SIGN     
+                lea     CX, CMD_ERR     
+                sub     CX, DI          
+                xor     BL, BL          
+                jmp     sign_nxt
+sign_nxt:       mov     AL, DS:[DI]     
+                mov     AH, ES:[DI]     
+                cmp     AL, AH
+                jne     cint_chk        
+                inc     DI              
+                loop    sign_nxt
+                mov     BL, 01h         
+                jmp     cint_chk
 
-DATA      SEGMENT
-   flag db 0
-   flag_load db 0
+; Проверка параметров консоли 
+pars_chk:       cmp     byte ptr DS:[DI], 00h   
+                je      sign_chk        
+                cmp     byte ptr DS:[DI], 01h   
+                je      pars_nxt        
+                jmp     pars_st1
+pars_st1:       cmp     byte ptr DS:[DI], '/'   
+                je      pars_st2
+                cmp     byte ptr DS:[DI], '\'
+                je      pars_st2
+                jmp     pars_unk
+pars_st2:       inc     DI              
+                cmp     byte ptr DS:[DI], 'u'   
+                je      pars_st3
+                cmp     byte ptr DS:[DI], 'U'
+                je      pars_st3
+                jmp     pars_unk
+pars_st3:       inc     DI              
+                cmp     byte ptr DS:[DI], 'n'   
+                je      pars_ex1
+                cmp     byte ptr DS:[DI], 'N'
+                je      pars_ex1
+                jmp     pars_unk
+pars_ex1:       mov     BH, 01h         
+                jmp     pars_nxt        
+pars_nxt:       inc     DI              
+                jmp     pars_chk        
+pars_unk:       mov     BL, INF_CLR    
+                lea     BP, CMD_ERR
+                call    PR_STR_BIOS
+                jmp     dos_quit
 
-   STR_IST_LOAD  DB  'Iterrapt is not load',       0AH, 0DH,'$'
-   STR_ALR_LOAD  DB  'Iterrapt is already loaded', 0AH, 0DH,'$'
-   STR_SUC_LOAD  DB  'Iterrapt has been loaded',   0AH, 0DH,'$'
-   STR_IS_UNLOAD  DB 'Iterrapt is unloaded',       0AH, 0DH,'$'
-DATA      ENDS
-          END Main
+; Проверка флагов
+cint_chk:       cmp     BL, 00h         
+                jne     cint_unf
+                cmp     BH, 00h       
+                je      cint_inj
+                mov     BL, INF_CLR    
+                lea     BP, UNL_ERR
+                call    PR_STR_BIOS
+                jmp     dos_quit
+cint_inj:       push    DS
+                mov     AX, seg INT_09H_PRO 
+                mov     DS, AX          
+                lea     DX, INT_09H_PRO 
+                mov     AH, 25h         
+                mov     AL, 09h         
+                int     21h
+                pop     DS
+                mov     BL, INF_CLR    
+                lea     BP, STA_LOA
+                call    PR_STR_BIOS
+                mov     BL, INF_CLR     
+                mov     BL, INF_CLR 
+		mov     BL, INF_CLR    
+                lea     BP, INF_USG
+                call    PR_STR_BIOS
+                lea     BP, INF_HK1
+                call    PR_STR_BIOS
+                lea     BP, INF_HK2
+                call    PR_STR_BIOS 
+                jmp     cint_res
+cint_res:       mov     AH, 01h
+                int     21h
+                mov     DX, L5_STACK    
+                add     DX, STK_SIZE     
+                sub     DX, CODE     
+                add     DX, PSP_SIZE     
+                xor     AL, AL         
+                mov     AH, 31h
+                int     21h             
+                jmp     dos_quit        
+cint_unf:       cmp     BH, 00h         
+                jne     cint_unl
+                mov     BL, INF_CLR     
+                lea     BP, STA_ALR
+                call    PR_STR_BIOS
+                mov     BL, INF_CLR     
+                mov     BL, INF_CLR  
+		mov     BL, INF_CLR     
+                lea     BP, INF_USG
+                call    PR_STR_BIOS
+                lea     BP, INF_HK1
+                call    PR_STR_BIOS
+                lea     BP, INF_HK2
+                call    PR_STR_BIOS  
+                jmp     dos_quit
+cint_unl:       mov     BL,INF_CLR     
+                lea     BP, STA_ALR
+                call    PR_STR_BIOS
+                cli                     
+                push    DS              
+                mov     AX, ES:[KEEP_CS]    
+                mov     DS, AX          
+                mov     DX, ES:[KEEP_IP]    
+                mov     AH, 25h
+                mov     AL, 09h
+                int     21h             
+                pop     DS
+                sti                     
+                mov     AX, KEEP_CS     
+                sub     AX, PSP_SIZE
+                mov     ES, AX          
+                mov     BX, ES:[2Ch]    
+                mov     AH, 49h         
+                int     21h
+                jc      cint_per
+                mov     ES, BX
+                mov     AH, 49h         
+                int     21h
+                jc      cint_eer
+                mov     BL, INF_CLR    
+                lea     BP, STA_UNL
+                call    PR_STR_BIOS
+                jmp     dos_quit
+cint_per:       lea     DI, PRM_ERR     
+                add     DI, 64          
+                call    WRD_TO_HEX
+                mov     BL,INF_CLR    
+                lea     BP, PRM_ERR
+                call    PR_STR_BIOS
+                jmp     dos_quit
+cint_eer:       lea     DI, ENM_ERR     
+                add     DI, 64          
+                call    WRD_TO_HEX
+                mov     BL, INF_CLR     
+                lea     BP, ENM_ERR
+                call    PR_STR_BIOS
+                jmp     dos_quit
+
+; Выход из программы
+dos_quit:       mov     AH, 01h
+                int     21h
+                mov     AH, 4Ch
+                int     21h
+
+CODE ENDS
+END START
+
