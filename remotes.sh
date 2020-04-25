@@ -1,7 +1,7 @@
 git remote add caxapexac         https://github.com/caxapexac/spbetu_os_2020_8381.git         # Сахаров Виктор
 # git remote add LemonGrace        https://github.com/LemonGrace/spbetu_os_2020_8381.git        # Гречко Вероника
 # git remote add Elli-zveg         https://github.com/Elli-zveg/spbetu_os_2020_8381.git         # Звегинцева Елизавета
-git remote add garet2gis         https://github.com/garet2gis/spbetu_os_2020_8181.git         # Муковский Данил
+git remote add garet2gis         https://github.com/garet2gis/spbetu_os_2020_8381.git         # Муковский Данил
 git remote add the21composer     https://github.com/the21composer/spbetu_os_2020_8381.git     # Облизанов Александр
 git remote add olesy             https://github.com/olesy/spbetu_os_2020_8381.git             # Ивлева Олеся
 # git remote add StavrWalker       https://github.com/StavrWalker/spbetu_os_2020_8381.git       # Гоголев Евгений
