@@ -8,11 +8,22 @@ INTERRUPTION    PROC    FAR
 
         KEEP_IP 	DW  0
         KEEP_CS 	DW  0
+		KEEP_SS		DW  0
+		KEEP_SP 	DW  0
+		KEEP_AX     DW  0
 		KEEP_PSP 	DW	0
+		INT_STACK 	DW 	100 dup (?)
 
 		SYMB 		DB 	0
     
     INT_START:
+		mov 	KEEP_SS, SS 
+        mov 	KEEP_SP, SP 
+        mov 	KEEP_AX, AX 
+		mov 	AX, seg INT_STACK 
+		mov 	SS, AX 
+		mov 	SP, 0 
+		mov 	AX, KEEP_AX
 		push	AX
 		push    BX
 		push    CX
@@ -20,6 +31,7 @@ INTERRUPTION    PROC    FAR
 		push    SI
         push    ES
         push    DS
+		push 	AX
 
 		mov 	AX, SEG SYMB
 		mov 	DS, AX
@@ -88,7 +100,13 @@ INTERRUPTION    PROC    FAR
 		pop     DX
 		pop     CX
 		pop     BX
-		pop		AX
+		
+		
+		mov 	AX, KEEP_SS
+		mov 	SS, AX
+		mov		AX, KEEP_AX
+		mov 	SP, KEEP_SP
+		
 		mov 	AL, 20h
 		out 	20h, AL
 		IRET
