@@ -27,7 +27,7 @@ rout proc far
 	mov keep_sp, sp
 	mov keep_ss, ss	
 	mov keep_bp, bp
-	mov ax, seg rout_stack
+	lea ax, rout_stack
 	mov ss, ax
 	lea sp, rout_stack+128
 	mov bp, sp
