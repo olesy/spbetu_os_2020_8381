@@ -17,7 +17,20 @@ rout proc far
     keep_ip dw ?
     keep_cs dw ? 		
 	sign db ?
+	keep_ax dw ?
+	keep_ss dw ?
+	keep_sp dw ?
+	keep_bp dw ?
+	rout_stack db 128 dup(?)
 	rout_start:
+	mov keep_ax, ax
+	mov keep_sp, sp
+	mov keep_ss, ss	
+	mov keep_bp, bp
+	mov ax, seg rout_stack
+	mov ss, ax
+	lea sp, rout_stack+128
+	mov bp, sp
     push ax
     push bx
     push cx
@@ -111,6 +124,11 @@ rout proc far
 	pop cx
 	pop bx
 	pop ax
+	mov ax, keep_ss
+	mov ss, ax
+	mov sp, keep_sp
+	mov ax, keep_ax
+	mov bp, keep_bp
     mov al, 20h
     out 20h, al
     iret    
