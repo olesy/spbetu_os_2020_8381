@@ -17,6 +17,37 @@ MEMORY_ERROR 	db 	0
 
 .code
 
+HEX_BYTE_PRINT	PROC
+		push 	AX
+		push 	BX
+		push 	DX
+	
+		mov 	AH, 0
+		mov 	BL, 10h
+		div 	BL
+		mov 	DX, AX
+		mov 	AH, 02h
+		cmp 	DL, 0Ah
+		jl 		PRINT
+		add 	DL, 07h
+	PRINT:
+		add 	DL, '0'
+		int 	21h;
+		
+		mov 	DL, DH
+		cmp 	DL, 0Ah
+		jl 		PRINT_EXT
+		add 	DL, 07h
+	PRINT_EXT:
+		add 	DL, '0'
+		int 	21h;
+	
+		pop 	DX
+		pop 	BX
+		pop 	AX
+	ret
+HEX_BYTE_PRINT	ENDP
+
 TETR_TO_HEX		PROC	near
 		and		al, 0fh
 		cmp		al, 09
@@ -69,7 +100,7 @@ EXIT_PROGRAM 	PROC
 		je 		ECTRLC
 		lea 	DX, STR_SUCCESS
 		call 	PRINT_STRING
-		add		AH, '0'
+		call	HEX_BYTE_PRINT
 		mov 	DL, AH
 		mov 	AH, 2h
 		int 	21h
