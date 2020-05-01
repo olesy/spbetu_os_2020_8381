@@ -19,7 +19,8 @@ OCCUP_386 		 db '386MAX UMB$'
 BLOCK_386 		 db '386MAX$'
 BELONG_386 		 db '386MAX UMB$'
 
-
+MEMORY_SUCCESS   db 'Memory is allocated correctly',13,10,'$' 
+MEMORY_FAIL      db 'Memory is not allocated correctly',13,10,'$'
 
 
 ;--------------------------------------------------------------------------------
@@ -138,11 +139,29 @@ FREE_MEMORY	 ENDP
 ADD_MEMORY     PROC
 		PUSH 	AX
 		PUSH 	BX
-	
+		PUSH    DX
+		
 		MOV 	BX, 1000H
 		MOV 	AH, 48H
 		INT 	21H
-
+		
+		JC MEM_FAIL
+		
+		MEM_SUCCESS:
+			MOV DX,OFFSET MEMORY_SUCCESS
+			CALL PRINT
+			JMP FUNC_END
+		
+		MEM_FAIL:
+			MOV DX,OFFSET MEMORY_FAIL
+			CALL PRINT 
+			
+		
+		
+		
+		FUNC_END:
+		
+		POP     DX
 		POP 	BX
 		POP 	AX
 	RET
