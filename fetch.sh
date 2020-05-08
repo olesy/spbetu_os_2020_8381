@@ -4,7 +4,7 @@ git fetch caxapexac         # Сахаров Виктор
 git fetch garet2gis         # Муковский Данил
 git fetch the21composer     # Облизанов Александр
 git fetch olesy             # Ивлева Олеся
-# git fetch StavrWalker       # Гоголев Евгений
+git fetch StavrWalker       # Гоголев Евгений
 git fetch Fireralin         # Перелыгин Дмитрий
 git fetch Nik-Poch          # Почаев Никита
 git fetch NguyenHai-LETI    # Нгуен Ши Хай
