@@ -4,7 +4,7 @@ git remote add caxapexac         https://github.com/caxapexac/spbetu_os_2020_838
 git remote add garet2gis         https://github.com/garet2gis/spbetu_os_2020_8381.git         # Муковский Данил
 git remote add the21composer     https://github.com/the21composer/spbetu_os_2020_8381.git     # Облизанов Александр
 git remote add olesy             https://github.com/olesy/spbetu_os_2020_8381.git             # Ивлева Олеся
-git remote add StavrWalker       https://github.com/StavrWalker/spbetu_os_2020_8381.git       # Гоголев Евгений
+git remote add StavrWalker       https://github.com/StavrWalker/spbetu_os_2020_8381.git      # Гоголев Евгений
 git remote add Fireralin         https://github.com/Fireralin/spbetu_os_2020_8381.git         # Перелыгин Дмитрий
 git remote add Nik-Poch          https://github.com/Nik-Poch/spbetu_os_2020_8381.git          # Почаев Никита
 git remote add NguyenHai-LETI    https://github.com/NguyenHai-LETI/spbetu_os_2020_8381.git    # Нгуен Ши Хай
