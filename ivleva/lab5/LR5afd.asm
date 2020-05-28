@@ -22,7 +22,8 @@ INTERRUPTION    PROC    FAR
         mov 	KEEP_AX, AX 
 		mov 	AX, seg INT_STACK 
 		mov 	SS, AX 
-		mov 	SP, 0 
+		mov 	SP, offset INT_STACK
+		add		SP, 200h
 		mov 	AX, KEEP_AX
 		push	AX
 		push    BX
@@ -31,7 +32,6 @@ INTERRUPTION    PROC    FAR
 		push    SI
         push    ES
         push    DS
-		push 	AX
 
 		mov 	AX, SEG SYMB
 		mov 	DS, AX
@@ -65,34 +65,34 @@ INTERRUPTION    PROC    FAR
 		jmp 	INT_END
 		
 	OUT_P:
-		mov		SYMB, 'P'
+		mov		SYMB, 'Q'
 		jmp		PROCESSING_SYMB
 	OUT_R:
-		mov		SYMB, 'R'
+		mov		SYMB, 'W'
 		jmp		PROCESSING_SYMB
 	OUT_I:
-		mov		SYMB, 'I'
+		mov		SYMB, 'E'
 		jmp		PROCESSING_SYMB
 	OUT_M:
-		mov		SYMB, 'M'
+		mov		SYMB, 'R'
 		jmp		PROCESSING_SYMB
 	OUT_T:
 		mov		SYMB, 'T'
 		jmp		PROCESSING_SYMB
 	OUT_E:
-		mov		SYMB, 'E'
+		mov		SYMB, 'Y'
 		jmp		PROCESSING_SYMB
 	OUT_L:
-		mov		SYMB, 'L'
+		mov		SYMB, 'U'
 		jmp		PROCESSING_SYMB
 	OUT_A:
-		mov		SYMB, 'A'
+		mov		SYMB, 'I'
 		jmp		PROCESSING_SYMB
 	OUT_B:
-		mov		SYMB, 'B'
+		mov		SYMB, 'O'
 		jmp		PROCESSING_SYMB
 	OUT_U:
-		mov		SYMB, 'U'
+		mov		SYMB, 'P'
 			
 	PROCESSING_SYMB:
 		in 		AL, 61h
@@ -125,6 +125,7 @@ INTERRUPTION    PROC    FAR
 		pop     DX
 		pop     CX
 		pop     BX
+        pop     AX
 		
 		
 		mov 	AX, KEEP_SS
